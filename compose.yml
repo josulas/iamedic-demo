@@ -1,0 +1,61 @@
+services:
+  bb-reg-service:
+    build: 
+      context: bb-reg-service/
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - iamedic-demo-net
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./bb-reg-service
+          target: /app
+        - action: rebuild
+          path: ./bb-reg-service/Dockerfile
+        - action: rebuild
+          path: ./bb-reg-service/requirements.txt
+
+  frontend:
+    build:
+      context: frontend/
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - frontend/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - iamedic-demo-net
+    depends_on:
+      bb-reg-service:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+        - action: rebuild
+          path: ./frontend/Dockerfile
+        - action: rebuild
+          path: ./frontend/requirements.txt
+        - action: rebuild
+          path: ./frontend/.env
+
+networks:
+  iamedic-demo-net:
+    driver: bridge

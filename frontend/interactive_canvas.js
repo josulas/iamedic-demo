@@ -8,6 +8,19 @@ class InteractiveCanvas {
         this.selectedRect = null;
         this.dragMode = 'none';
         
+        // Define class colors
+        this.classColors = {
+            "Cisternae Magna": "#FF5733",
+            "Intracranial Translucency": "#33FF57",
+            "Nuchal Translucency": "#3357FF",
+            "Midbrain": "#F1C40F",
+            "Nasal Bone": "#8E44AD",
+            "Nasal Skin": "#E67E22",
+            "Nasal Tip": "#2ECC71",
+            "Palate": "#3498DB",
+            "Thalami": "#E74C3C"
+        };
+        
         this.setupCanvas(imageUrl);
         this.setupControls();
         this.bindEvents();
@@ -18,6 +31,11 @@ class InteractiveCanvas {
         }
     }
 
+    getColorForLabel(label) {
+        return this.classColors[label] || "#FF0000";
+    }
+
+    // Update createInitialRectangles to use the color from the data
     createInitialRectangles(initialRectangles) {
         initialRectangles.forEach(rectData => {
             const rect = {
@@ -27,7 +45,7 @@ class InteractiveCanvas {
                 width: rectData.width,
                 height: rectData.height,
                 label: rectData.label,
-                color: rectData.color || '#FF0000',
+                color: rectData.color || this.getColorForLabel(rectData.label),
                 timestamp: rectData.timestamp || new Date().toISOString()
             };
             
@@ -70,14 +88,6 @@ class InteractiveCanvas {
                 ">
                     ${this.structures.map(s => `<option value="${s}">${s}</option>`).join('')}
                 </select>
-                <input type="color" id="color-picker" value="#FF0000" style="
-                    margin-right: 10px; 
-                    padding: 4px; 
-                    background: #262730; 
-                    border: 1px solid #555; 
-                    border-radius: 4px;
-                    cursor: pointer;
-                ">
                 <button id="clear-all" style="
                     padding: 8px 16px;
                     background: #ff4b4b;
@@ -116,7 +126,6 @@ class InteractiveCanvas {
     
     setupControls() {
         this.structureSelect = document.getElementById('structure-select');
-        this.colorPicker = document.getElementById('color-picker');
         this.clearAllBtn = document.getElementById('clear-all');
         
         this.structureSelect.addEventListener('change', (e) => {
@@ -202,7 +211,7 @@ class InteractiveCanvas {
             width: 0,
             height: 0,
             label: this.currentStructure,
-            color: this.colorPicker.value,
+            color: this.getColorForLabel(this.currentStructure),
             timestamp: new Date().toISOString()
         };
         
@@ -474,9 +483,16 @@ class InteractiveCanvas {
 
 document.addEventListener('DOMContentLoaded', function() {
     const structures = [
-        "Nuchal Translucency", "Nasal Bone", "Nasal Tip", "Midbrain",
-        "Intracranial Translucency", "Palate", "Thalami", "Cisterna Magna", "Other"
-    ];
+        "Cisternae Magna",
+        "Intracranial Translucency",
+        "Nuchal Translucency",
+        "Midbrain",
+        "Nasal Bone",
+        "Nasal Skin",
+        "Nasal Tip",
+        "Palate",
+        "Thalami"
+    ]
     
     // Get image URL from parent or use placeholder
     const imageUrl = window.imageUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5VcGxvYWQgSW1hZ2U8L3RleHQ+PC9zdmc+';
