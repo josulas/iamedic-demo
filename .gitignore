@@ -1,3 +1,5 @@
 .idea
+training_set/
+
 pre_processing_segmentation/*
 !pre_processing_segmentation/dataset_purge.ipynb
