@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+onnx
+onnxruntime
+pillow
+opencv-python-headless

@@ -96,7 +96,6 @@ async def predict(request: PredictionRequest):
         
         # Make prediction
         outputs = model_service.predict(image)
-        print(outputs)
         class_probs = outputs[0][0] # [K] 
         boxes = outputs[1][0]       # [K, 4]
         predictions = []

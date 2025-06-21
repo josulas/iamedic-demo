@@ -1,4 +1,28 @@
 services:
+  seg-service:
+    build: 
+      context: seg-service/
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - iamedic-demo-net
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./seg-service
+          target: /app
+        - action: rebuild
+          path: ./seg-service/Dockerfile
+        - action: rebuild
+          path: ./seg-service/requirements.txt
   bb-reg-service:
     build: 
       context: bb-reg-service/
@@ -23,7 +47,6 @@ services:
           path: ./bb-reg-service/Dockerfile
         - action: rebuild
           path: ./bb-reg-service/requirements.txt
-
   frontend:
     build:
       context: frontend/
@@ -41,6 +64,8 @@ services:
       - iamedic-demo-net
     depends_on:
       bb-reg-service:
+        condition: service_healthy
+      seg-service:
         condition: service_healthy
     ports:
       - "8501:8501"
