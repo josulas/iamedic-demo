@@ -59,22 +59,21 @@ class ModelService:
         self.load_model()
     
     def load_model(self):
-        try: 
-            # Load ONNX model (assuming you saved it as ONNX in MLflow)
-            onnx_path = MODEL_PATH
-            self.model = ort.InferenceSession(onnx_path)
+        try:
+            self.model = ort.InferenceSession(MODEL_PATH)
             print(f"Model loaded successfully")            
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
     
-    def predict(self, data: np.ndarray) -> np.ndarray:
+    def predict(self, input_tensor: np.ndarray) -> np.ndarray:
         """Make predictions using the loaded model"""
         if self.model is None:
             raise RuntimeError("Model not loaded")
-        inputs = {self.model.get_inputs()[0].name: data}
-        results = self.model.run(None, inputs)
-        return results[0]
+        inputs = {self.model.get_inputs()[0].name: input_tensor}
+        outputs = self.model.run(None, inputs)
+        ort_preds = outputs[0]
+        return ort_preds
 
 
 def fit_ellipse(bin_mask: np.ndarray):
@@ -112,16 +111,16 @@ async def health_check():
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
     try:
-        image = np.array(request.data, dtype=np.uint8)
-        original_height, original_width = image.shape
-        pil_image = PILImage.fromarray(image)
-        pil_image = pil_image.resize((TARGET_WIDTH, TARGET_HEIGHT), PILImage.LANCZOS)
-        image = np.array(pil_image)
-        image = image.astype(np.float32) / 255.0  # Normalize to [0, 1]
-        image = np.expand_dims(image, axis=0)  # Add channel dimension
-        image = np.expand_dims(image, axis=0)  # Add batch dimension
-        # Make prediction
-        output = model_service.predict(image)
+        input_array = np.array(request.data, dtype=np.uint8)
+        print(input_array.shape)
+        print(np.max(input_array))
+        print(np.min(input_array))
+        original_height, original_width = input_array.shape
+        img = PILImage.fromarray(input_array)
+        resized_img = img.resize((TARGET_WIDTH, TARGET_HEIGHT),  PILImage.LANCZOS)
+        img_array = np.array(resized_img, dtype=np.float32) / 255.0
+        input_tensor = img_array[np.newaxis, np.newaxis, :, :]
+        output = model_service.predict(input_tensor)
         output_image = output[0][0]
         print(np.max(output_image))
         print(np.min(output_image))
