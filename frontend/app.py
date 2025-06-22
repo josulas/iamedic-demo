@@ -2,7 +2,6 @@
 Main application file for the First Trimester Screening Tool.
 """
 
-
 import os
 from datetime import datetime
 import json
@@ -20,17 +19,27 @@ import numpy as np
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-
 load_dotenv()
+
+LANG_PACK_PATH = os.getenv("LANG_PACK_PATH")
+if not LANG_PACK_PATH:
+    raise ValueError("LANG_PACK_PATH environment variable is not set.")
+
+# Load language pack first
+with open(LANG_PACK_PATH, "r", encoding="UTF-8") as f:
+    LANG_PACK = json.load(f)
+if not LANG_PACK:
+    raise ValueError(f"Language pack file {LANG_PACK_PATH} is empty or not found.")
 
 BOUNDING_BOX_REGRESSION_SERVICE_HOST = os.getenv("BOUNDING_BOX_REGRESSION_HOST")
 if not BOUNDING_BOX_REGRESSION_SERVICE_HOST:
-    raise ValueError("BOUNDING_BOX_REGRESSION_HOST environment variable is not set.")
+    raise ValueError(LANG_PACK["error_messages"]["bb_service_unavailable"])
 SEGMENTATION_SERVICE_HOST = os.getenv("SEGMENTATION_HOST")
 if not SEGMENTATION_SERVICE_HOST:
-    raise ValueError("SEGMENTATION_HOST environment variable is not set.")
+    raise ValueError(LANG_PACK["error_messages"]["seg_service_unavailable"])
 
 
+# Internal classes (always in English for consistency)
 CLASSES = [
     "Cisternae Magna",
     "Intracranial Translucency",
@@ -55,15 +64,17 @@ CLASS_COLORS = {
     "Thalami": "#E74C3C"
 }
 
-BWImage = list[list[int]]
+# Create mapping from English to localized class names
+CLASS_TRANSLATIONS = dict(zip(CLASSES, LANG_PACK["class_names"]))
+REVERSE_CLASS_TRANSLATIONS = dict(zip(LANG_PACK["class_names"], CLASSES))
 
+BWImage = list[list[int]]
 
 class BBPredictionRequest(BaseModel):
     """
     Request model for bounding box predictions.
     """
     data: BWImage
-
 
 class BBPrediction(BaseModel):
     """
@@ -75,13 +86,11 @@ class BBPrediction(BaseModel):
     width: float
     height: float
 
-
 class BBPredictionResponse(BaseModel):
     """
     Response model for bounding box predictions.
     """
     predictions: list[BBPrediction]
-
 
 class BoundingBox(BaseModel):
     """
@@ -107,38 +116,37 @@ class BoundingBox(BaseModel):
         Validates the label against the predefined classes.
         """
         if label not in CLASSES:
-            raise ValueError(f"Invalid label: {label}. Must be one of {CLASSES}.")
+            raise ValueError(LANG_PACK["error_messages"]["invalid_label"].format(
+                label=label, classes=CLASSES
+            ))
         return label
 
+    def get_localized_label(self):
+        """Returns the localized version of the label"""
+        return CLASS_TRANSLATIONS.get(self.label, self.label)
 
 class SegPredictionRequest(BaseModel):
     data: BWImage
-
 
 class SegPrediction(BaseModel):
     seg_mask: BWImage
     tn_endpoints: tuple[tuple[float, float], tuple[float, float]] | None = None
 
-
 class SegPredictionResponse(BaseModel):
     prediction: SegPrediction
-
 
 class TNEndpoint(BaseModel):
     x: float
     y: float
 
-
 class TNMeasurement(BaseModel):
     endpoints: list[TNEndpoint]
-
 
 def local_storage_manager():
     """
     Returns a LocalStorage instance for managing local storage in Streamlit.
     """
     return LocalStorage()
-
 
 def sync_data() -> None:
     """
@@ -160,7 +168,6 @@ def sync_data() -> None:
     )
     st.session_state.tn_endpoints = [TNEndpoint(**ep) for ep in synced_tn_endpoints]
 
-
 def get_automatic_bounding_boxes(image: np.ndarray) -> list[BoundingBox]:
     """
     Gets automatic bounding boxes from the ML service.
@@ -174,7 +181,9 @@ def get_automatic_bounding_boxes(image: np.ndarray) -> list[BoundingBox]:
             timeout=30
         )
         if response.status_code != 200:
-            raise RuntimeError(f"Error from bounding box regression service: {response.text}")
+            raise RuntimeError(LANG_PACK["error_messages"]["bb_service_error"].format(
+                error=response.text
+            ))
         response_data = BBPredictionResponse.model_validate(response.json())
         bounding_boxes = []
         for prediction in response_data.predictions:
@@ -190,9 +199,8 @@ def get_automatic_bounding_boxes(image: np.ndarray) -> list[BoundingBox]:
             bounding_boxes.append(box)
         return bounding_boxes
     except Exception as e:
-        st.error(f"Failed to get automatic detection: {str(e)}")
+        st.error(LANG_PACK["error_messages"]["auto_detection_failed"].format(error=str(e)))
         return []
-
 
 def get_segmentation_mask(image: np.ndarray) -> tuple[np.ndarray, tuple[tuple[float, float], tuple[float, float]] | None] | None:
     """
@@ -208,20 +216,21 @@ def get_segmentation_mask(image: np.ndarray) -> tuple[np.ndarray, tuple[tuple[fl
             timeout=30
         )
         if response.status_code != 200:
-            raise RuntimeError(f"Error from bounding box regression service: {response.text}")
+            raise RuntimeError(LANG_PACK["error_messages"]["bb_service_error"].format(
+                error=response.text
+            ))
         response_data = SegPredictionResponse.model_validate(response.json())
         seg_mask = np.array(response_data.prediction.seg_mask)
         endpoints = response_data.prediction.tn_endpoints
         return seg_mask, endpoints
     except Exception as e:
-        st.error(f"Failed to get automatic detection: {str(e)}")
+        st.error(LANG_PACK["error_messages"]["segmentation_failed"].format(error=str(e)))
         return None
-
 
 # Page configuration
 st.set_page_config(
-    page_title="First Trimester Screening Tool",
-    page_icon="🏥",
+    page_title=LANG_PACK["page_config"]["title"],
+    page_icon=LANG_PACK["page_config"]["icon"],
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -242,44 +251,44 @@ if 'tn_endpoints' not in st.session_state:
 
 # Sidebar - Information Panel
 with st.sidebar:
-    st.header("📋 Information Panel")
+    st.header(LANG_PACK["sidebar"]["header"])
 
     # File metadata section
-    with st.expander("📁 File Metadata", expanded=True):
+    with st.expander(LANG_PACK["sidebar"]["file_metadata"]["title"], expanded=True):
         if st.session_state.uploaded_file is not None:
             image = Image.open(st.session_state.uploaded_file)
             file_details = {
-                "Filename": st.session_state.uploaded_file.name,
-                "File size": f"{st.session_state.uploaded_file.size / 1024:.2f} KB",
-                "File type": st.session_state.uploaded_file.type,
-                "Upload time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Dimensions": f"{image.width} x {image.height} px"
+                LANG_PACK["sidebar"]["file_metadata"]["fields"]["filename"]: st.session_state.uploaded_file.name,
+                LANG_PACK["sidebar"]["file_metadata"]["fields"]["file_size"]: f"{st.session_state.uploaded_file.size / 1024:.2f} {LANG_PACK['field_labels']['kb_suffix']}",
+                LANG_PACK["sidebar"]["file_metadata"]["fields"]["file_type"]: st.session_state.uploaded_file.type,
+                LANG_PACK["sidebar"]["file_metadata"]["fields"]["upload_time"]: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                LANG_PACK["sidebar"]["file_metadata"]["fields"]["dimensions"]: f"{image.width} x {image.height} {LANG_PACK['field_labels']['px_suffix']}"
             }
             for key, value in file_details.items():
-                st.text(f"{key}: {value}")
+                st.text(f"{key}{LANG_PACK['field_labels']['colon_separator']}{value}")
         else:
-            st.info("No file uploaded yet")
+            st.info(LANG_PACK["sidebar"]["file_metadata"]["no_file_message"])
 
     # Notes section
-    with st.expander("📝 Clinical Notes", expanded=True):
+    with st.expander(LANG_PACK["sidebar"]["clinical_notes"]["title"], expanded=True):
         st.session_state.notes = st.text_area(
-            "Add your clinical observations:",
+            LANG_PACK["sidebar"]["clinical_notes"]["label"],
             value=st.session_state.notes,
             height=200,
-            placeholder="Enter clinical notes, measurements, observations, etc."
+            placeholder=LANG_PACK["sidebar"]["clinical_notes"]["placeholder"]
         )
         # Save notes button
-        if st.button("💾 Save Notes"):
-            st.success("Notes saved!")
+        if st.button(LANG_PACK["sidebar"]["clinical_notes"]["save_button"]):
+            st.success(LANG_PACK["sidebar"]["clinical_notes"]["save_success"])
 
 # Main content area
-st.header("Fetal US Image Annotation Tool")
+st.header(LANG_PACK["main_content"]["header"])
 
 # File upload
 uploaded_file = st.file_uploader(
-    "Upload ultrasound image",
+    label=LANG_PACK["main_content"]["file_upload"]["label"],
     type=['png', 'jpg', 'jpeg', 'tiff', 'bmp'],
-    help="Supported formats: PNG, JPG, JPEG, TIFF, BMP"
+    help=LANG_PACK["main_content"]["file_upload"]["help"]
 )
 
 # Clear session state when a new file is uploaded
@@ -295,10 +304,11 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     image_array = np.array(image.convert('L'))
     col1, col2 = st.columns([2, 1])
+    
     with col2:
-        st.subheader("🔍 Automatic Detection")
-        if st.button("Run Auto Detection", type="primary"):
-            with st.spinner("Running automatic detection..."):
+        st.subheader(LANG_PACK["main_content"]["automatic_detection"]["section_title"])
+        if st.button(LANG_PACK["main_content"]["automatic_detection"]["run_button"], type="primary"):
+            with st.spinner(LANG_PACK["main_content"]["automatic_detection"]["loading_message"]):
                 auto_boxes = get_automatic_bounding_boxes(image_array)
                 if auto_boxes:
                     for box in auto_boxes:
@@ -307,46 +317,23 @@ if uploaded_file is not None:
                             st.session_state.bounding_boxes.append(box)
                     st.rerun()
                 else:
-                    st.warning("No structures detected")
-        st.subheader("Nuchal Translucency Measurement")
-        seg_col_1, seg_col_2 = st.columns([1, 1])
-        with seg_col_1:
-            if st.button("Run Auto Segmentation", type="primary"):
-                with st.spinner("Running automatic segmentation..."):
-                    seg_results = get_segmentation_mask(image_array)
-                    if seg_results is None:
-                        st.error("Segmentation failed. Please check the service status.")
-                    else:
-                        seg_mask, endpoints = seg_results
-                        st.session_state.seg_mask = np.array(seg_mask, dtype=np.uint8)
-                        st.session_state.tn_endpoints = [TNEndpoint(x=ep[0], y=ep[1]) for ep in endpoints] if endpoints else []
-                        if endpoints is None:
-                            st.warning("No valid measurement for TN was found.")
-                            time.sleep(2)
-                        st.rerun()
-        with seg_col_2:
-            if st.session_state.seg_mask is not None:
-                if st.button("Delete Segmentation Mask", type="primary"):
-                    st.session_state.seg_mask = None
-                    st.session_state.tn_endpoints = None
+                    st.warning(LANG_PACK["main_content"]["automatic_detection"]["no_detection_warning"])
+        
+        st.subheader(LANG_PACK["main_content"]["segmentation"]["section_title"])
+        if st.button(LANG_PACK["main_content"]["segmentation"]["run_button"], type="primary"):
+            with st.spinner(LANG_PACK["main_content"]["segmentation"]["loading_message"]):
+                seg_results = get_segmentation_mask(image_array)
+                if seg_results is None:
+                    st.error(LANG_PACK["main_content"]["segmentation"]["error_message"])
+                else:
+                    seg_mask, endpoints = seg_results
+                    st.session_state.seg_mask = np.array(seg_mask, dtype=np.uint8)
+                    st.session_state.tn_endpoints = [TNEndpoint(x=ep[0], y=ep[1]) for ep in endpoints] if endpoints else []
+                    if endpoints is None:
+                        st.warning(LANG_PACK["main_content"]["segmentation"]["no_measurement_warning"])
+                        time.sleep(2)
                     st.rerun()
-        if st.session_state.tn_endpoints:
-            tn_col_1, tn_col_2 = st.columns([1, 1])
-            with tn_col_1:
-                # Let the clinnician set the pixel size in mm
-                pixel_mm = st.number_input(
-                    "Pixel size in mm",
-                    min_value=0.01,
-                    value=0.18,  # Default value
-                    step=0.01,
-                    help="Enter the pixel size in millimeters for accurate TN measurement."
-                )
-            with tn_col_2:
-                endpoints = st.session_state.tn_endpoints
-                x1, y1 = endpoints[0].x, endpoints[0].y
-                x2, y2 = endpoints[1].x, endpoints[1].y
-                tn_meas = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * pixel_mm
-                st.success(f"Nuchal Translucency Measurement: {tn_meas:.2f} mm")
+
     with col1:
         initial_bounding_boxes = json.dumps([bb.model_dump() for bb in st.session_state.bounding_boxes])
         
@@ -357,8 +344,8 @@ if uploaded_file is not None:
         initial_endpoints = json.dumps([endpoint.model_dump() for endpoint in st.session_state.tn_endpoints])
         
         # Interactive Rectangle Drawing
-        st.subheader("🖱️ Interactive Annotation Tool")
-        st.info("Switch between drawing bounding boxes and measuring TN endpoints")
+        st.subheader(LANG_PACK["main_content"]["interactive_canvas"]["section_title"])
+        st.info(LANG_PACK["main_content"]["interactive_canvas"]["info_message"])
         
         # Convert image to base64 for embedding
         buffered_image = BytesIO()
@@ -391,43 +378,3 @@ if uploaded_file is not None:
         
         # Display interactive canvas
         canvas_result = components.html(canvas_html, height=image.height+150)
-
-    # Display current annotations if any exist
-    if st.button("🔄 Load Annotations"):
-        components.html(
-            """
-            <script>
-                const localS = window.localStorage;
-                const data = localS.getItem("streamlit_annotations");
-                if (data) {
-                    console.log("Loaded annotations from localStorage:", JSON.parse(data));
-                } else {
-                    console.log("No annotations found in localStorage.");
-                }
-            </script>
-            """,
-            height=0
-        )
-        sync_data()
-    
-    if st.session_state.bounding_boxes:
-        st.subheader("📋 Saved Annotations")
-        df = pd.DataFrame([bb.model_dump() for bb in st.session_state.bounding_boxes])
-        st.dataframe(df, use_container_width=True)
-    
-    if st.session_state.tn_endpoints:
-        st.subheader("📏 TN Measurement")
-        if len(st.session_state.tn_endpoints) == 2:
-            endpoint1 = st.session_state.tn_endpoints[0]
-            endpoint2 = st.session_state.tn_endpoints[1]
-            
-            # Calculate distance
-            distance = np.sqrt((endpoint2.x - endpoint1.x)**2 + (endpoint2.y - endpoint1.y)**2)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("TN Distance (pixels)", f"{distance:.2f}")
-            with col2:
-                st.metric("Endpoints", f"({endpoint1.x:.0f}, {endpoint1.y:.0f}) → ({endpoint2.x:.0f}, {endpoint2.y:.0f})")
-        else:
-            st.info("Place two endpoints to measure TN distance")

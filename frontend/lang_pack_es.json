@@ -1,0 +1,94 @@
+{
+  "page_config": {
+    "title": "Herramienta de Cribado del Primer Trimestre",
+    "icon": "🏥"
+  },
+  "sidebar": {
+    "header": "📋 Panel de Información",
+    "file_metadata": {
+      "title": "📁 Metadatos del Archivo",
+      "fields": {
+        "filename": "Nombre del archivo",
+        "file_size": "Tamaño del archivo",
+        "file_type": "Tipo de archivo", 
+        "upload_time": "Hora de subida",
+        "dimensions": "Dimensiones"
+      },
+      "no_file_message": "Aún no se ha subido ningún archivo"
+    },
+    "clinical_notes": {
+      "title": "📝 Notas Clínicas",
+      "label": "Añade tus observaciones clínicas:",
+      "placeholder": "Introduce notas clínicas, mediciones, observaciones, etc.",
+      "save_button": "💾 Guardar Notas",
+      "save_success": "¡Notas guardadas!"
+    }
+  },
+  "main_content": {
+    "header": "Herramienta de Anotación de Imágenes de Ecografía Fetal",
+    "file_upload": {
+      "label": "Subir imagen de ecografía",
+      "help": "Formatos compatibles: PNG, JPG, JPEG, TIFF, BMP"
+    },
+    "automatic_detection": {
+      "section_title": "🔍 Detección Automática",
+      "run_button": "Ejecutar Detección Automática",
+      "loading_message": "Ejecutando detección automática...",
+      "no_detection_warning": "No se detectaron estructuras"
+    },
+    "segmentation": {
+      "section_title": "Medición de Translucencia Nucal",
+      "run_button": "Ejecutar Segmentación Automática",
+      "delete_button": "Eliminar Máscara de Segmentación",
+      "loading_message": "Ejecutando segmentación automática...",
+      "error_message": "La segmentación falló. Por favor, verifica el estado del servicio.",
+      "no_measurement_warning": "No se encontró una medición válida para TN.",
+      "pixel_size_label": "Tamaño del píxel en mm",
+      "pixel_size_help": "Introduce el tamaño del píxel en milímetros para una medición precisa de TN.",
+      "measurement_result": "Medición de Translucencia Nucal: {value:.2f} mm"
+    },
+    "interactive_canvas": {
+      "section_title": "🖱️ Herramienta de Anotación Interactiva",
+      "info_message": "Cambia entre dibujar cajas delimitadoras y medir puntos finales de TN"
+    },
+    "annotations": {
+      "load_button": "🔄 Cargar Anotaciones",
+      "saved_title": "📋 Anotaciones Guardadas"
+    },
+    "tn_measurement_display": {
+      "section_title": "📏 Medición TN",
+      "distance_metric": "Distancia TN (píxeles)",
+      "endpoints_metric": "Puntos finales",
+      "incomplete_message": "Coloca dos puntos finales para medir la distancia TN"
+    }
+  },
+  "error_messages": {
+    "bb_service_unavailable": "La variable de entorno BOUNDING_BOX_REGRESSION_HOST no está configurada.",
+    "seg_service_unavailable": "La variable de entorno SEGMENTATION_HOST no está configurada.",
+    "invalid_label": "Etiqueta inválida: {label}. Debe ser una de {classes}.",
+    "bb_service_error": "Error del servicio de regresión de cajas delimitadoras: {error}",
+    "auto_detection_failed": "Falló la detección automática: {error}",
+    "segmentation_failed": "Falló la detección automática: {error}"
+  },
+  "class_names": [
+    "Cisterna Magna",
+    "Translucencia Intracraneal", 
+    "Translucencia Nucal",
+    "Mesencéfalo",
+    "Hueso Nasal",
+    "Piel Nasal",
+    "Punta Nasal",
+    "Paladar",
+    "Tálamos"
+  ],
+  "javascript_console_messages": {
+    "annotations_found": "Anotaciones cargadas desde localStorage:",
+    "no_annotations": "No se encontraron anotaciones en localStorage."
+  },
+  "field_labels": {
+    "kb_suffix": "KB",
+    "px_suffix": "px",
+    "mm_suffix": "mm",
+    "colon_separator": ": "
+  }
+}

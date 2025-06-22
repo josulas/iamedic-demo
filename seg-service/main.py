@@ -42,8 +42,8 @@ class PredictionRequest(BaseModel):
 class Ellipse(BaseModel):
     center_x: float
     center_y: float
-    major_axis: float
     minor_axis: float
+    major_axis: float
     angle: float
 
 class Prediction(BaseModel):
@@ -87,12 +87,12 @@ def fit_ellipse(bin_mask: np.ndarray):
     cnt = max(contours, key=cv2.contourArea)
     ellipse = cv2.fitEllipse(cnt)
     (center, axes, angle) = ellipse
-    (eje_mayor, eje_menor) = axes
+    (minor_axis, major_axis) = axes
     return Ellipse(
         center_x=center[0],
         center_y=center[1],
-        major_axis=eje_mayor,
-        minor_axis=eje_menor,
+        minor_axis=minor_axis,
+        major_axis=major_axis,
         angle=angle
     )
 
@@ -112,19 +112,14 @@ async def health_check():
 async def predict(request: PredictionRequest):
     try:
         input_array = np.array(request.data, dtype=np.uint8)
-        print(input_array.shape)
-        print(np.max(input_array))
-        print(np.min(input_array))
         original_height, original_width = input_array.shape
         img = PILImage.fromarray(input_array)
         resized_img = img.resize((TARGET_WIDTH, TARGET_HEIGHT),  PILImage.LANCZOS)
         img_array = np.array(resized_img, dtype=np.float32) / 255.0
         input_tensor = img_array[np.newaxis, np.newaxis, :, :]
         output = model_service.predict(input_tensor)
-        output_image = output[0][0]
-        print(np.max(output_image))
-        print(np.min(output_image))
-        print(np.sum(output_image > THRESHOLD))
+        sigmoid_output = 1 / (1 + np.exp(-output))  # Apply sigmoid to the output
+        output_image = sigmoid_output[0][0]
         output_pil = PILImage.fromarray((output_image * 255).astype(np.uint8))
         output_pil = output_pil.resize((original_width, original_height), PILImage.LANCZOS)
         output_array = np.array(output_pil) / 255.0
@@ -135,20 +130,21 @@ async def predict(request: PredictionRequest):
             ellipse = None
         endpoint1 = endpoint2 = None
         if ellipse is not None:
-            # Get the two coordinates of the minor axis endpoints
-            center_x, center_y = ellipse.center_x, ellipse.center_y
-            minor_axis_half = ellipse.minor_axis / 2
-            angle_rad = np.radians(ellipse.angle + 90)  # Add 90 degrees for minor axis
-            
-            # Calculate the two endpoints of the minor axis
-            dx = minor_axis_half * np.cos(angle_rad)
-            dy = minor_axis_half * np.sin(angle_rad)
-            endpoint1 = (center_x + dx, center_y + dy)
-            endpoint2 = (center_x - dx, center_y - dy)
+            center = (ellipse.center_x, ellipse.center_y)
+            minor_axis = ellipse.minor_axis
+            major_axis = ellipse.major_axis
+            angle = ellipse.angle
+            x1 = int(center[0] - minor_axis / 2 * np.cos(np.deg2rad(angle)))
+            y1 = int(center[1] - minor_axis / 2 * np.sin(np.deg2rad(angle)))
+            x2 = int(center[0] + minor_axis / 2 * np.cos(np.deg2rad(angle)))
+            y2 = int(center[1] + minor_axis / 2 * np.sin(np.deg2rad(angle)))
+            endpoint1 = (x1, y1)
+            endpoint2 = (x2, y2)
         output_mask = [mask_row.tolist() for mask_row in predicted_mask]
+        print(f"Endpoints: {endpoint1}, {endpoint2}")
         return PredictionResponse(prediction=Prediction(
             seg_mask=output_mask,
-            endpoints=(endpoint1, endpoint2) if endpoint1 and endpoint2 else None
+            tn_endpoints=(endpoint1, endpoint2) if endpoint1 and endpoint2 else None
         ))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

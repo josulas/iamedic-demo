@@ -1,5 +1,12 @@
 class InteractiveCanvas {
-    constructor(containerId, imageUrl, structures, initialRectangles = [], maskUrl = null, initialEndpoints = null) {
+    constructor(containerId,
+        imageUrl,
+        structures,
+        initialRectangles = [],
+        maskUrl = null,
+        initialEndpoints = null,
+        clearLocalStorage = false
+    ) {
         this.container = document.getElementById(containerId);
         this.allStructures = structures;
         this.currentStructure = structures[0];

@@ -1,0 +1,94 @@
+{
+  "page_config": {
+    "title": "First Trimester Screening Tool",
+    "icon": "🏥"
+  },
+  "sidebar": {
+    "header": "📋 Information Panel",
+    "file_metadata": {
+      "title": "📁 File Metadata",
+      "fields": {
+        "filename": "Filename",
+        "file_size": "File size",
+        "file_type": "File type", 
+        "upload_time": "Upload time",
+        "dimensions": "Dimensions"
+      },
+      "no_file_message": "No file uploaded yet"
+    },
+    "clinical_notes": {
+      "title": "📝 Clinical Notes",
+      "label": "Add your clinical observations:",
+      "placeholder": "Enter clinical notes, measurements, observations, etc.",
+      "save_button": "💾 Save Notes",
+      "save_success": "Notes saved!"
+    }
+  },
+  "main_content": {
+    "header": "Fetal US Image Annotation Tool",
+    "file_upload": {
+      "label": "Upload ultrasound image",
+      "help": "Supported formats: PNG, JPG, JPEG, TIFF, BMP"
+    },
+    "automatic_detection": {
+      "section_title": "🔍 Automatic Detection",
+      "run_button": "Run Auto Detection",
+      "loading_message": "Running automatic detection...",
+      "no_detection_warning": "No structures detected"
+    },
+    "segmentation": {
+      "section_title": "Nuchal Translucency Measurement",
+      "run_button": "Run Auto Segmentation",
+      "delete_button": "Delete Segmentation Mask",
+      "loading_message": "Running automatic segmentation...",
+      "error_message": "Segmentation failed. Please check the service status.",
+      "no_measurement_warning": "No valid measurement for TN was found.",
+      "pixel_size_label": "Pixel size in mm",
+      "pixel_size_help": "Enter the pixel size in millimeters for accurate TN measurement.",
+      "measurement_result": "Nuchal Translucency Measurement: {value:.2f} mm"
+    },
+    "interactive_canvas": {
+      "section_title": "🖱️ Interactive Annotation Tool",
+      "info_message": "Switch between drawing bounding boxes and measuring TN endpoints"
+    },
+    "annotations": {
+      "load_button": "🔄 Load Annotations",
+      "saved_title": "📋 Saved Annotations"
+    },
+    "tn_measurement_display": {
+      "section_title": "📏 TN Measurement",
+      "distance_metric": "TN Distance (pixels)",
+      "endpoints_metric": "Endpoints",
+      "incomplete_message": "Place two endpoints to measure TN distance"
+    }
+  },
+  "error_messages": {
+    "bb_service_unavailable": "BOUNDING_BOX_REGRESSION_HOST environment variable is not set.",
+    "seg_service_unavailable": "SEGMENTATION_HOST environment variable is not set.",
+    "invalid_label": "Invalid label: {label}. Must be one of {classes}.",
+    "bb_service_error": "Error from bounding box regression service: {error}",
+    "auto_detection_failed": "Failed to get automatic detection: {error}",
+    "segmentation_failed": "Failed to get automatic detection: {error}"
+  },
+  "class_names": [
+    "Cisternae Magna",
+    "Intracranial Translucency", 
+    "Nuchal Translucency",
+    "Midbrain",
+    "Nasal Bone",
+    "Nasal Skin",
+    "Nasal Tip",
+    "Palate",
+    "Thalami"
+  ],
+  "javascript_console_messages": {
+    "annotations_found": "Loaded annotations from localStorage:",
+    "no_annotations": "No annotations found in localStorage."
+  },
+  "field_labels": {
+    "kb_suffix": "KB",
+    "px_suffix": "px",
+    "mm_suffix": "mm",
+    "colon_separator": ": "
+  }
+}
