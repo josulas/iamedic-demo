@@ -148,26 +148,6 @@ def local_storage_manager():
     """
     return LocalStorage()
 
-def sync_data() -> None:
-    """
-    Syncs the bounding boxes with local storage.
-    """
-    localS = local_storage_manager()
-    for _ in range(100):
-        localS.refreshItems()
-    data = localS.getItem("streamlit_annotations")
-    if data is None:
-        synced_boxes = []
-        synced_tn_endpoints = []
-    else:
-        synced_boxes = data.get("rectangles", [])
-        synced_tn_endpoints = data.get("tn_endpoints", [])
-    st.session_state.bounding_boxes = [BoundingBox(**bb) for bb in synced_boxes]
-    st.session_state.bounding_boxes_present_classes = set(
-        bb.label for bb in st.session_state.bounding_boxes
-    )
-    st.session_state.tn_endpoints = [TNEndpoint(**ep) for ep in synced_tn_endpoints]
-
 def get_automatic_bounding_boxes(image: np.ndarray) -> list[BoundingBox]:
     """
     Gets automatic bounding boxes from the ML service.
@@ -226,6 +206,26 @@ def get_segmentation_mask(image: np.ndarray) -> tuple[np.ndarray, tuple[tuple[fl
     except Exception as e:
         st.error(LANG_PACK["error_messages"]["segmentation_failed"].format(error=str(e)))
         return None
+    
+def draw_canvas(image_height: int,
+                IMG_DATA_URL: str,
+                MASK_DATA_URL: str = "null",
+                initial_bounding_boxes=None,
+                initial_endpoints=None
+                ):
+    canvas_html = f"""
+        <div id="interactive-canvas"></div>
+        <script>
+            window.imageUrl = '{IMG_DATA_URL}';
+            window.maskUrl = {MASK_DATA_URL};
+            window.initialRectangles = {initial_bounding_boxes if len(initial_bounding_boxes) else 'null'};
+            window.initialEndpoints = {initial_endpoints if len(initial_endpoints) else 'null'};
+            window.clearLocalStorage = {str(st.session_state.clear_local_storage).lower()}; 
+            {open('./interactive_canvas.js', "r", encoding="UTF-8").read()}
+        </script>
+        """
+    components.html(canvas_html, height=image_height+300)
+    st.session_state.clear_local_storage = False
 
 # Page configuration
 st.set_page_config(
@@ -238,8 +238,6 @@ st.set_page_config(
 # Initialize session state
 if 'bounding_boxes' not in st.session_state:
     st.session_state.bounding_boxes = []
-if 'bounding_boxes_present_classes' not in st.session_state:
-    st.session_state.bounding_boxes_present_classes = set()
 if 'notes' not in st.session_state:
     st.session_state.notes = ""
 if 'uploaded_file' not in st.session_state:
@@ -248,6 +246,8 @@ if 'seg_mask' not in st.session_state:
     st.session_state.seg_mask = None
 if 'tn_endpoints' not in st.session_state:
     st.session_state.tn_endpoints = []
+if 'clear_local_storage' not in st.session_state:
+    st.session_state.clear_local_storage = True
 
 # Sidebar - Information Panel
 with st.sidebar:
@@ -294,10 +294,10 @@ uploaded_file = st.file_uploader(
 # Clear session state when a new file is uploaded
 if uploaded_file is not None and uploaded_file != st.session_state.uploaded_file:
     st.session_state.bounding_boxes = []
-    st.session_state.bounding_boxes_present_classes = set()
     st.session_state.notes = ""
     st.session_state.seg_mask = None
     st.session_state.tn_endpoints = []
+    st.session_state.clear_local_storage = True
 
 if uploaded_file is not None:
     st.session_state.uploaded_file = uploaded_file
@@ -307,20 +307,19 @@ if uploaded_file is not None:
     
     with col2:
         st.subheader(LANG_PACK["main_content"]["automatic_detection"]["section_title"])
-        if st.button(LANG_PACK["main_content"]["automatic_detection"]["run_button"], type="primary"):
+        if st.button(LANG_PACK["main_content"]["automatic_detection"]["run_button"]):
             with st.spinner(LANG_PACK["main_content"]["automatic_detection"]["loading_message"]):
+                st.session_state.bounding_boxes = []
                 auto_boxes = get_automatic_bounding_boxes(image_array)
                 if auto_boxes:
                     for box in auto_boxes:
-                        if box.label not in st.session_state.bounding_boxes_present_classes:
-                            st.session_state.bounding_boxes_present_classes.add(box.label)
-                            st.session_state.bounding_boxes.append(box)
+                        st.session_state.bounding_boxes.append(box)
                     st.rerun()
                 else:
                     st.warning(LANG_PACK["main_content"]["automatic_detection"]["no_detection_warning"])
         
         st.subheader(LANG_PACK["main_content"]["segmentation"]["section_title"])
-        if st.button(LANG_PACK["main_content"]["segmentation"]["run_button"], type="primary"):
+        if st.button(LANG_PACK["main_content"]["segmentation"]["run_button"]):
             with st.spinner(LANG_PACK["main_content"]["segmentation"]["loading_message"]):
                 seg_results = get_segmentation_mask(image_array)
                 if seg_results is None:
@@ -333,6 +332,11 @@ if uploaded_file is not None:
                         st.warning(LANG_PACK["main_content"]["segmentation"]["no_measurement_warning"])
                         time.sleep(2)
                     st.rerun()
+        if st.session_state.seg_mask is not None:
+            if st.button(LANG_PACK["main_content"]["segmentation"]["delete_button"], type="primary"):
+                st.session_state.seg_mask = None
+                st.session_state.tn_endpoints = []
+                st.rerun()
 
     with col1:
         initial_bounding_boxes = json.dumps([bb.model_dump() for bb in st.session_state.bounding_boxes])
@@ -364,17 +368,14 @@ if uploaded_file is not None:
             mask_str = base64.b64encode(buffered_mask.getvalue()).decode()
             MASK_DATA_URL = f"'data:image/png;base64,{mask_str}'"
         
-        # Create HTML with embedded JavaScript
-        canvas_html = f"""
-        <div id="interactive-canvas"></div>
-        <script>
-            window.imageUrl = '{IMG_DATA_URL}';
-            window.maskUrl = {MASK_DATA_URL};
-            window.initialRectangles = {initial_bounding_boxes};
-            window.initialEndpoints = {initial_endpoints};
-            {open('./interactive_canvas.js', "r", encoding="UTF-8").read()}
-        </script>
-        """
-        
-        # Display interactive canvas
-        canvas_result = components.html(canvas_html, height=image.height+150)
+        draw_canvas(
+            image_height=image.height,
+            IMG_DATA_URL=IMG_DATA_URL,
+            MASK_DATA_URL=MASK_DATA_URL,
+            initial_bounding_boxes=initial_bounding_boxes,
+            initial_endpoints=initial_endpoints
+        )
+
+        # Clear bounding boxes, segmentation mask, and TN endpoints. They will be cached in local storage.}
+        st.session_state.bounding_boxes = []
+        st.session_state.tn_endpoints = []
