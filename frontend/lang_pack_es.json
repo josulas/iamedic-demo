@@ -90,5 +90,42 @@
     "px_suffix": "px",
     "mm_suffix": "mm",
     "colon_separator": ": "
+  },
+  "canvas":{
+    "mode_selector": {
+      "label": "Modo:",
+      "bounding_box_option": "Dibujar Cajas Delimitadoras",
+      "tn_measurement_option": "Medir TN"
+    },
+    "bounding_box_controls": {
+      "clear_all_button": "Limpiar Todo",
+      "all_structures_annotated": "Todas las estructuras anotadas"
+    },
+    "tn_controls": {
+      "pixel_mm_ratio_label": "Relación píxel a mm:",
+      "pixel_mm_ratio_unit": "mm/píxel",
+      "clear_tn_button": "Limpiar TN",
+      "status": {
+        "place_first_endpoint": "Haga clic para colocar el primer punto",
+        "place_second_endpoint": "Haga clic para colocar el segundo punto", 
+        "measurement_complete": "Medición TN completada"
+      },
+      "measurement_display": {
+        "distance_label": "Distancia TN:",
+        "mm_unit": "mm",
+        "pixels_unit": "píxeles"
+      }
+    }
+  },
+  "structure_translations": {
+    "Cisternae Magna": "Cisterna Magna",
+    "Intracranial Translucency": "Translucencia Intracraneal", 
+    "Nuchal Translucency": "Translucencia Nucal",
+    "Midbrain": "Mesencéfalo",
+    "Nasal Bone": "Hueso Nasal",
+    "Nasal Skin": "Piel Nasal",
+    "Nasal Tip": "Punta Nasal",
+    "Palate": "Paladar",
+    "Thalami": "Tálamos"
   }
 }

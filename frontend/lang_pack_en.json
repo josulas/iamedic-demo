@@ -90,5 +90,42 @@
     "px_suffix": "px",
     "mm_suffix": "mm",
     "colon_separator": ": "
+  },
+  "canvas":{
+    "mode_selector": {
+      "label": "Mode:",
+      "bounding_box_option": "Draw Bounding Boxes",
+      "tn_measurement_option": "Measure TN"
+    },
+    "bounding_box_controls": {
+      "clear_all_button": "Clear All",
+      "all_structures_annotated": "All structures annotated"
+    },
+    "tn_controls": {
+      "pixel_mm_ratio_label": "Pixel to mm ratio:",
+      "pixel_mm_ratio_unit": "mm/pixel",
+      "clear_tn_button": "Clear TN",
+      "status": {
+        "place_first_endpoint": "Click to place first endpoint",
+        "place_second_endpoint": "Click to place second endpoint", 
+        "measurement_complete": "TN measurement complete"
+      },
+      "measurement_display": {
+        "distance_label": "TN Distance:",
+        "mm_unit": "mm",
+        "pixels_unit": "pixels"
+      }
+    }
+  },
+  "structure_translations": {
+    "Cisternae Magna": "Cisternae Magna",
+    "Intracranial Translucency": "Intracranial Translucency", 
+    "Nuchal Translucency": "Nuchal Translucency",
+    "Midbrain": "Midbrain",
+    "Nasal Bone": "Nasal Bone",
+    "Nasal Skin": "Nasal Skin",
+    "Nasal Tip": "Nasal Tip",
+    "Palate": "Palate",
+    "Thalami": "Thalami"
   }
 }

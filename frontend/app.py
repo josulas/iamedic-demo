@@ -68,6 +68,8 @@ CLASS_COLORS = {
 CLASS_TRANSLATIONS = dict(zip(CLASSES, LANG_PACK["class_names"]))
 REVERSE_CLASS_TRANSLATIONS = dict(zip(LANG_PACK["class_names"], CLASSES))
 
+IMAGE_WIDTH = 800
+
 BWImage = list[list[int]]
 
 class BBPredictionRequest(BaseModel):
@@ -211,7 +213,8 @@ def draw_canvas(image_height: int,
                 IMG_DATA_URL: str,
                 MASK_DATA_URL: str = "null",
                 initial_bounding_boxes=None,
-                initial_endpoints=None
+                initial_endpoints=None,
+                mode=None
                 ):
     canvas_html = f"""
         <div id="interactive-canvas"></div>
@@ -221,11 +224,14 @@ def draw_canvas(image_height: int,
             window.initialRectangles = {initial_bounding_boxes if len(initial_bounding_boxes) else 'null'};
             window.initialEndpoints = {initial_endpoints if len(initial_endpoints) else 'null'};
             window.clearLocalStorage = {str(st.session_state.clear_local_storage).lower()}; 
+            window.mode = '{mode if mode else ""}';
+            window.langpack = {json.dumps(LANG_PACK)}; 
             {open('./interactive_canvas.js', "r", encoding="UTF-8").read()}
         </script>
         """
     components.html(canvas_html, height=image_height+300)
     st.session_state.clear_local_storage = False
+    st.session_state.drawing_mode = None
 
 # Page configuration
 st.set_page_config(
@@ -248,6 +254,8 @@ if 'tn_endpoints' not in st.session_state:
     st.session_state.tn_endpoints = []
 if 'clear_local_storage' not in st.session_state:
     st.session_state.clear_local_storage = True
+if 'drawing_mode' not in st.session_state:
+    st.session_state.drawing_mode = "bounding_box"
 
 # Sidebar - Information Panel
 with st.sidebar:
@@ -298,10 +306,12 @@ if uploaded_file is not None and uploaded_file != st.session_state.uploaded_file
     st.session_state.seg_mask = None
     st.session_state.tn_endpoints = []
     st.session_state.clear_local_storage = True
+    st.session_state.drawing_mode = "bounding_box"
 
 if uploaded_file is not None:
     st.session_state.uploaded_file = uploaded_file
     image = Image.open(uploaded_file)
+    image = image.resize((IMAGE_WIDTH, int(image.height * IMAGE_WIDTH / image.width)), Image.LANCZOS)
     image_array = np.array(image.convert('L'))
     col1, col2 = st.columns([2, 1])
     
@@ -314,6 +324,7 @@ if uploaded_file is not None:
                 if auto_boxes:
                     for box in auto_boxes:
                         st.session_state.bounding_boxes.append(box)
+                    st.session_state.drawing_mode = "bounding_box"
                     st.rerun()
                 else:
                     st.warning(LANG_PACK["main_content"]["automatic_detection"]["no_detection_warning"])
@@ -331,6 +342,8 @@ if uploaded_file is not None:
                     if endpoints is None:
                         st.warning(LANG_PACK["main_content"]["segmentation"]["no_measurement_warning"])
                         time.sleep(2)
+                    else:
+                        st.session_state.drawing_mode = "tn_measurement"
                     st.rerun()
         if st.session_state.seg_mask is not None:
             if st.button(LANG_PACK["main_content"]["segmentation"]["delete_button"], type="primary"):
@@ -373,7 +386,8 @@ if uploaded_file is not None:
             IMG_DATA_URL=IMG_DATA_URL,
             MASK_DATA_URL=MASK_DATA_URL,
             initial_bounding_boxes=initial_bounding_boxes,
-            initial_endpoints=initial_endpoints
+            initial_endpoints=initial_endpoints,
+            mode=st.session_state.drawing_mode
         )
 
         # Clear bounding boxes, segmentation mask, and TN endpoints. They will be cached in local storage.}

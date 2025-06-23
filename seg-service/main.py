@@ -7,6 +7,8 @@ import uvicorn
 from PIL import Image as PILImage
 import cv2
 
+from lukinoising4GP import lukinoising
+
 MODEL_PATH = "unet_fetus_segmentation.onnx"
 
 TARGET_HEIGHT = 400
@@ -113,7 +115,8 @@ async def predict(request: PredictionRequest):
     try:
         input_array = np.array(request.data, dtype=np.uint8)
         original_height, original_width = input_array.shape
-        img = PILImage.fromarray(input_array)
+        denoised_array = lukinoising(input_array, alpha=0.5, beta=0.5)
+        img = PILImage.fromarray(denoised_array)
         resized_img = img.resize((TARGET_WIDTH, TARGET_HEIGHT),  PILImage.LANCZOS)
         img_array = np.array(resized_img, dtype=np.float32) / 255.0
         input_tensor = img_array[np.newaxis, np.newaxis, :, :]

@@ -5,7 +5,9 @@ class InteractiveCanvas {
         initialRectangles = null,
         maskUrl = null,
         initialEndpoints = null,
-        clearLocalStorage = false
+        clearLocalStorage = false,
+        mode = null,
+        langpack = null
     ) {
         this.container = document.getElementById(containerId);
         this.allStructures = structures;
@@ -18,11 +20,11 @@ class InteractiveCanvas {
         this.maskUrl = maskUrl;
         
         // TN measurement properties
-        this.mode = 'bounding_box'; // 'bounding_box' or 'tn_measurement'
         this.endpoints = [];
-        this.tempEndpoint = null;
-        this.isPlacingEndpoint = false;
+        this.endpointLine = null;
         this.previewLine = null;
+        this.previewCross = null; // Add this for the preview cross
+        this.isPlacingFirst = true; // Track which endpoint we're placing
         
         // Define class colors
         this.classColors = {
@@ -36,6 +38,8 @@ class InteractiveCanvas {
             "Palate": "#3498DB",
             "Thalami": "#E74C3C"
         };
+
+        this.langPack = langpack || {};
         
         // Handle localStorage clearing first
         if (clearLocalStorage) {
@@ -50,14 +54,28 @@ class InteractiveCanvas {
         if (initialEndpoints !== null) {
             this.saveEndpointsToLocalStorage(initialEndpoints);
         }
+
+        if (mode !== null) {
+            this.saveModeToLocalStorage(mode);
+        }
         
         // ALWAYS read from localStorage to build the component
         const cachedData = this.loadFromLocalStorage();
         const rectanglesToLoad = cachedData.rectangles || [];
         const endpointsToLoad = cachedData.endpoints || [];
+        this.mode = cachedData.mode || 'bounding_box';
+        console.log('Loaded mode from localStorage:', this.mode);
         
         this.setupCanvas(imageUrl);
         this.setupControls();
+
+        if (this.modeSelect) {
+            this.modeSelect.value = this.mode;
+        }
+
+        this.updateModeUI();
+        this.updateDropdown();
+
         this.bindEvents();
         
         // Load rectangles if available
@@ -69,9 +87,11 @@ class InteractiveCanvas {
         if (endpointsToLoad && endpointsToLoad.length > 0) {
             this.endpoints = endpointsToLoad.map(ep => ({ x: ep.x, y: ep.y }));
         }
-        
-        // Update dropdown after everything is set up
-        this.updateDropdown();
+    }
+
+    getLocalizedStructureName(englishName) {
+        const structureTranslations = this.langPack.structure_translations || {};
+        return structureTranslations[englishName] || englishName;
     }
 
     saveRectanglesToLocalStorage(rectangles) {
@@ -87,7 +107,6 @@ class InteractiveCanvas {
             
             // Save synchronously
             localStorage.setItem('streamlit_annotations', JSON.stringify(newData));
-            console.log('Saved rectangles to localStorage:', rectangles);
         } catch (error) {
             console.error('Error saving rectangles to localStorage:', error);
         }
@@ -106,18 +125,40 @@ class InteractiveCanvas {
             
             // Save synchronously
             localStorage.setItem('streamlit_annotations', JSON.stringify(newData));
-            console.log('Saved endpoints to localStorage:', endpoints);
         } catch (error) {
             console.error('Error saving endpoints to localStorage:', error);
         }
     }
 
+    saveModeToLocalStorage(mode) {
+        try {
+            // Get existing data
+            const existingData = this.loadFromLocalStorage();
+            // Update with new mode
+            const newData = {
+                ...existingData,
+                mode: mode
+            };
+            // Save synchronously
+            localStorage.setItem('streamlit_annotations', JSON.stringify(newData));
+        } catch (error) {
+            console.error('Error saving mode to localStorage:', error);
+        }
+    }
+
     setupCanvas(imageUrl) {
+        // Get language pack references
+        const canvas = this.langPack.canvas || {};
+        const modeSelector = canvas.mode_selector || {};
+        const boundingBoxControls = canvas.bounding_box_controls || {};
+        const tnControls = canvas.tn_controls || {};
+        const measurementDisplay = tnControls.measurement_display || {};
+        
         // Create main container
         this.container.innerHTML = `
             <div id="canvas-controls" style="margin-bottom: 10px; padding: 12px; background: #0e1117; border-radius: 8px;">
                 <div style="margin-bottom: 10px;">
-                    <label style="color: #fafafa; font-family: 'Source Sans Pro', sans-serif; font-weight: 600; margin-right: 10px;">Mode:</label>
+                    <label style="color: #fafafa; font-family: 'Source Sans Pro', sans-serif; font-weight: 600; margin-right: 10px;">${modeSelector.label || 'Mode:'}</label>
                     <select id="mode-select" style="
                         margin-right: 10px; 
                         padding: 8px 12px; 
@@ -127,8 +168,8 @@ class InteractiveCanvas {
                         border-radius: 4px;
                         font-family: 'Source Sans Pro', sans-serif;
                     ">
-                        <option value="bounding_box">Draw Bounding Boxes</option>
-                        <option value="tn_measurement">Measure TN</option>
+                        <option value="bounding_box">${modeSelector.bounding_box_option || 'Draw Bounding Boxes'}</option>
+                        <option value="tn_measurement">${modeSelector.tn_measurement_option || 'Measure TN'}</option>
                     </select>
                 </div>
                 <div id="bounding-box-controls">
@@ -153,17 +194,17 @@ class InteractiveCanvas {
                         font-weight: 600;
                         transition: all 0.2s;
                         margin-right: 10px;
-                    " onmouseover="if(!this.disabled) this.style.background='#ff6b6b'" onmouseout="if(!this.disabled) this.style.background='#ff4b4b'">Clear All</button>
+                    " onmouseover="if(!this.disabled) this.style.background='#ff6b6b'" onmouseout="if(!this.disabled) this.style.background='#ff4b4b'">${boundingBoxControls.clear_all_button || 'Clear All'}</button>
                 </div>
                 <div id="tn-controls" style="display: none;">
                     <div style="margin-bottom: 10px;">
                         <span style="color: #fafafa; font-family: 'Source Sans Pro', sans-serif; margin-right: 10px;">
-                            <span id="tn-status">Click to place first endpoint</span>
+                            <span id="tn-status">${tnControls.status?.place_first_endpoint || 'Click to place first endpoint'}</span>
                         </span>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <label style="color: #fafafa; font-family: 'Source Sans Pro', sans-serif; margin-right: 10px;">
-                            Pixel to mm ratio:
+                            ${tnControls.pixel_mm_ratio_label || 'Pixel to mm ratio:'}
                         </label>
                         <input id="pixel-mm-ratio" type="number" min="0.01" max="10" step="0.01" value="0.18" style="
                             padding: 6px 10px;
@@ -176,17 +217,17 @@ class InteractiveCanvas {
                             margin-right: 10px;
                         ">
                         <span style="color: #888; font-family: 'Source Sans Pro', sans-serif; font-size: 12px;">
-                            mm/pixel
+                            ${tnControls.pixel_mm_ratio_unit || 'mm/pixel'}
                         </span>
                     </div>
                     <div id="tn-measurement" style="margin-bottom: 10px; display: none;">
                         <div style="color: #fafafa; font-family: 'Source Sans Pro', sans-serif; font-size: 14px;">
                             <div style="margin-bottom: 5px;">
-                                <strong>TN Distance:</strong> 
-                                <span id="tn-distance-mm" style="color: #00ff00; font-weight: bold;">0.00 mm</span>
+                                <strong>${measurementDisplay.distance_label || 'TN Distance:'}:</strong> 
+                                <span id="tn-distance-mm" style="color: #00ff00; font-weight: bold;">0.00 ${measurementDisplay.mm_unit || 'mm'}</span>
                             </div>
                             <div style="color: #888; font-size: 12px;">
-                                (<span id="tn-distance-pixels">0.00 pixels</span>)
+                                (<span id="tn-distance-pixels">0.00 ${measurementDisplay.pixels_unit || 'pixels'}</span>)
                             </div>
                         </div>
                     </div>
@@ -200,7 +241,7 @@ class InteractiveCanvas {
                         font-family: 'Source Sans Pro', sans-serif;
                         font-weight: 600;
                         transition: all 0.2s;
-                    " onmouseover="this.style.background='#ff6b6b'" onmouseout="this.style.background='#ff4b4b'">Clear TN</button>
+                    " onmouseover="this.style.background='#ff6b6b'" onmouseout="this.style.background='#ff4b4b'">${tnControls.clear_tn_button || 'Clear TN'}</button>
                 </div>
             </div>
             <div id="canvas-container" style="position: relative; display: inline-block; border: 2px solid #262730; border-radius: 8px; overflow: hidden;">
@@ -233,12 +274,14 @@ class InteractiveCanvas {
             // Draw the composite image
             this.drawComposite();
             
-            // Load initial rectangles and endpoints after image is loaded
+            // Load initial rectangles after image is loaded
             if (this.pendingInitialRectangles && this.pendingInitialRectangles.length > 0) {
                 this.createInitialRectangles(this.pendingInitialRectangles);
                 this.pendingInitialRectangles = null;
             }
             
+            // Only create endpoint crosses if endpoints exist from localStorage
+            // This handles the case where endpoints were loaded from cache
             if (this.endpoints && this.endpoints.length > 0) {
                 this.createEndpointCrosses();
                 this.updateTNStatus();
@@ -251,7 +294,6 @@ class InteractiveCanvas {
     clearLocalStorage() {
         try {
             localStorage.removeItem('streamlit_annotations');
-            console.log('Cleared localStorage annotations');
         } catch (error) {
             console.error('Error clearing localStorage:', error);
         }
@@ -262,7 +304,6 @@ class InteractiveCanvas {
             const storedData = localStorage.getItem('streamlit_annotations');
             if (storedData) {
                 const data = JSON.parse(storedData);
-                console.log('Loaded annotations from localStorage:', data);
                 
                 // Restore pixel-mm ratio if available
                 if (data.pixelMmRatio && this.pixelMmRatio) {
@@ -278,7 +319,8 @@ class InteractiveCanvas {
                 return {
                     rectangles: data.rectangles || [],
                     endpoints: data.endpoints || [],
-                    pixelMmRatio: data.pixelMmRatio || 0.18
+                    pixelMmRatio: data.pixelMmRatio || 0.18,
+                    mode: data.mode || 'bounding_box'
                 };
             }
         } catch (error) {
@@ -436,23 +478,31 @@ class InteractiveCanvas {
             this.boundingBoxControls.style.display = 'block';
             this.tnControls.style.display = 'none';
             this.svg.style.cursor = 'crosshair';
+            this.toggleRectangleVisibility(true);
+            this.toggleTNVisibility(false);
+            this.clearPreviewElements(); // Clear TN preview elements
         } else {
             this.boundingBoxControls.style.display = 'none';
             this.tnControls.style.display = 'block';
             this.svg.style.cursor = 'crosshair';
             this.updateTNStatus();
+            this.toggleRectangleVisibility(false);
+            this.toggleTNVisibility(true);
         }
     }
 
     updateTNStatus() {
+        const tnControls = this.langPack.canvas?.tn_controls || {};
+        const status = tnControls.status || {};
+        
         if (this.endpoints.length === 0) {
-            this.tnStatus.textContent = 'Click to place first endpoint';
+            this.tnStatus.textContent = status.place_first_endpoint || 'Click to place first endpoint';
             this.tnMeasurement.style.display = 'none';
         } else if (this.endpoints.length === 1) {
-            this.tnStatus.textContent = 'Click to place second endpoint';
+            this.tnStatus.textContent = status.place_second_endpoint || 'Click to place second endpoint';
             this.tnMeasurement.style.display = 'none';
         } else {
-            this.tnStatus.textContent = 'TN measurement complete';
+            this.tnStatus.textContent = status.measurement_complete || 'TN measurement complete';
             this.tnMeasurement.style.display = 'block';
             this.updateTNMeasurement();
         }
@@ -460,6 +510,9 @@ class InteractiveCanvas {
 
     updateTNMeasurement() {
         if (this.endpoints.length !== 2) return;
+        
+        const tnControls = this.langPack.canvas?.tn_controls || {};
+        const measurementDisplay = tnControls.measurement_display || {};
         
         // Calculate distance in pixels
         const dx = this.endpoints[1].x - this.endpoints[0].x;
@@ -472,35 +525,35 @@ class InteractiveCanvas {
         // Calculate distance in mm
         const distanceMm = distancePixels * pixelMmRatio;
         
-        // Update display
-        this.tnDistancePixels.textContent = `${distancePixels.toFixed(2)} pixels`;
-        this.tnDistanceMm.textContent = `${distanceMm.toFixed(2)} mm`;
+        // Update display with language pack strings
+        this.tnDistancePixels.textContent = `${distancePixels.toFixed(2)} ${measurementDisplay.pixels_unit || 'pixels'}`;
+        this.tnDistanceMm.textContent = `${distanceMm.toFixed(2)} ${measurementDisplay.mm_unit || 'mm'}`;
     }
 
 
     updateDropdown() {
-        console.log('Used structures:', this.usedStructures);
+        const boundingBoxControls = this.langPack.canvas?.bounding_box_controls || {};
         const availableStructures = this.allStructures.filter(structure => !this.usedStructures.has(structure));
-        console.log('Available structures:', availableStructures);
         
-        // Update the select dropdown
         const select = document.getElementById('structure-select');
         if (select) {
             if (availableStructures.length > 0) {
-                select.innerHTML = availableStructures.map(s => `<option value="${s}">${s}</option>`).join('');
+                // Show localized names but keep English values
+                select.innerHTML = availableStructures.map(s => 
+                    `<option value="${s}">${this.getLocalizedStructureName(s)}</option>`
+                ).join('');
                 select.disabled = false;
                 this.currentStructure = availableStructures[0];
             } else {
-                select.innerHTML = '<option>All structures annotated</option>';
+                select.innerHTML = `<option>${boundingBoxControls.all_structures_annotated || 'All structures annotated'}</option>`;
                 select.disabled = true;
                 this.currentStructure = null;
             }
         }
         
-        // Update clear button state
+        // Update clear button state  
         const clearBtn = document.getElementById('clear-all');
         if (clearBtn) {
-            // Button should be disabled when there are NO rectangles to clear
             const shouldDisable = this.rectangles.length === 0;
             clearBtn.disabled = shouldDisable;
             clearBtn.style.opacity = shouldDisable ? '0.5' : '1';
@@ -512,6 +565,33 @@ class InteractiveCanvas {
         return this.classColors[label] || "#FF0000";
     }
 
+    toggleRectangleVisibility(visible) {
+        this.rectangles.forEach(rect => {
+            if (rect.element) {
+                rect.element.style.display = visible ? 'block' : 'none';
+            }
+        });
+    }
+
+    toggleTNVisibility(visible) {
+        // Hide/show endpoint crosses
+        this.endpoints.forEach(endpoint => {
+            if (endpoint.element) {
+                endpoint.element.style.display = visible ? 'block' : 'none';
+            }
+        });
+        
+        // Hide/show the connecting line
+        if (this.endpointLine) {
+            this.endpointLine.style.display = visible ? 'block' : 'none';
+        }
+        
+        // Hide/show preview line
+        if (this.previewLine) {
+            this.previewLine.style.display = visible ? 'block' : 'none';
+        }
+    }
+
     createInitialRectangles(initialRectangles) {
         initialRectangles.forEach(rectData => {
             const rect = {
@@ -521,6 +601,7 @@ class InteractiveCanvas {
                 width: rectData.width,
                 height: rectData.height,
                 label: rectData.label,
+                labelString: rectData.label,
                 color: rectData.color || this.getColorForLabel(rectData.label),
                 timestamp: rectData.timestamp || new Date().toISOString()
             };
@@ -529,12 +610,13 @@ class InteractiveCanvas {
             rect.element = svgRect;
             
             this.rectangles.push(rect);
-            this.usedStructures.add(rect.label);
+            this.usedStructures.add(rect.labelString);
             
             // Force update the rectangle display to ensure labels are positioned correctly
             this.updateRectangle(rect, rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
         });
 
+        this.updateDropdown();
         this.autoSaveAnnotations();
     }
 
@@ -560,6 +642,11 @@ class InteractiveCanvas {
         this.svg.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.svg.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         this.svg.addEventListener('click', (e) => this.handleClick(e));
+        this.svg.addEventListener('mouseleave', (e) => {
+            if (this.mode === 'tn_measurement') {
+                this.clearPreviewElements();
+            }
+        });
     }
     
     getMousePos(e) {
@@ -599,21 +686,28 @@ class InteractiveCanvas {
     }
 
     handleTNClick(e) {
-        // Don't place new endpoints if clicking on an existing cross
+        // Don't place new endpoints if clicking on an existing cross (for dragging)
         const target = e.target;
         if (target.closest('.endpoint-cross')) {
-            return; // Let the drag handler take over
+            return;
         }
         
         const pos = this.getMousePos(e);
         
+        // Only allow placing if we don't have 2 endpoints yet
         if (this.endpoints.length < 2) {
+            // Place the endpoint
             this.endpoints.push({ x: pos.x, y: pos.y });
             this.createEndpointCross(pos.x, pos.y, this.endpoints.length - 1);
             
-            if (this.endpoints.length === 2) {
+            if (this.endpoints.length === 1) {
+                // First endpoint placed, now we're placing the second
+                this.isPlacingFirst = false;
+            } else if (this.endpoints.length === 2) {
+                // Second endpoint placed, create the final line
                 this.createEndpointLine();
-                this.clearPreviewLine();
+                this.clearPreviewElements();
+                this.isPlacingFirst = true; // Reset for next time
             }
             
             this.updateTNStatus();
@@ -624,8 +718,8 @@ class InteractiveCanvas {
     }
     
     handleMouseMove(e) {
-        if (this.mode === 'tn_measurement' && this.endpoints.length === 1) {
-            this.updatePreviewLine(e);
+        if (this.mode === 'tn_measurement') {
+            this.updateTNPreview(e);
             return;
         }
         
@@ -642,6 +736,90 @@ class InteractiveCanvas {
                 this.updateCursor(pos);
             }
         }
+    }
+
+    clearPreviewElements() {
+        if (this.previewLine) {
+            this.previewLine.remove();
+            this.previewLine = null;
+        }
+        
+        if (this.previewCross) {
+            this.previewCross.remove();
+            this.previewCross = null;
+        }
+    }
+    
+    updateTNPreview(e) {
+        const pos = this.getMousePos(e);
+        
+        // Clear existing preview elements
+        this.clearPreviewElements();
+        
+        // Don't show preview cross if we already have 2 endpoints
+        if (this.endpoints.length >= 2) {
+            return;
+        }
+        
+        // Always show a preview cross at mouse position (only if we have less than 2 endpoints)
+        this.createPreviewCross(pos.x, pos.y);
+        
+        // If we have one endpoint, also show preview line
+        if (this.endpoints.length === 1) {
+            this.createPreviewLine(this.endpoints[0], pos);
+        }
+    }
+
+    createPreviewCross(x, y) {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'preview-cross');
+        
+        const size = 8;
+        const strokeWidth = 2;
+        const color = '#FFFF00';
+        const opacity = '0.5'; // Make it semi-transparent to show it's a preview
+        
+        // Create two lines forming an X
+        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line1.setAttribute('x1', x - size);
+        line1.setAttribute('y1', y - size);
+        line1.setAttribute('x2', x + size);
+        line1.setAttribute('y2', y + size);
+        line1.setAttribute('stroke', color);
+        line1.setAttribute('stroke-width', strokeWidth);
+        line1.setAttribute('stroke-linecap', 'round');
+        line1.setAttribute('opacity', opacity);
+        
+        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line2.setAttribute('x1', x - size);
+        line2.setAttribute('y1', y + size);
+        line2.setAttribute('x2', x + size);
+        line2.setAttribute('y2', y - size);
+        line2.setAttribute('stroke', color);
+        line2.setAttribute('stroke-width', strokeWidth);
+        line2.setAttribute('stroke-linecap', 'round');
+        line2.setAttribute('opacity', opacity);
+        
+        g.appendChild(line1);
+        g.appendChild(line2);
+        this.svg.appendChild(g);
+        
+        this.previewCross = g;
+    }
+
+    createPreviewLine(startPoint, endPoint) {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', startPoint.x);
+        line.setAttribute('y1', startPoint.y);
+        line.setAttribute('x2', endPoint.x);
+        line.setAttribute('y2', endPoint.y);
+        line.setAttribute('stroke', '#FFFF00');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '5,5');
+        line.setAttribute('opacity', '0.7');
+        
+        this.svg.appendChild(line);
+        this.previewLine = line;
     }
 
     updatePreviewLine(e) {
@@ -772,6 +950,10 @@ class InteractiveCanvas {
         });
         
         this.svg.appendChild(g);
+
+        if (this.mode !== 'tn_measurement') {
+            g.style.display = 'none';
+        }
         
         // Store reference
         this.endpoints[index].element = g;
@@ -799,6 +981,14 @@ class InteractiveCanvas {
 
 
     createEndpointCrosses() {
+        // Clear any existing crosses first
+        this.endpoints.forEach((endpoint, index) => {
+            if (endpoint.element) {
+                endpoint.element.remove();
+            }
+        });
+        
+        // Now create the crosses
         this.endpoints.forEach((endpoint, index) => {
             this.createEndpointCross(endpoint.x, endpoint.y, index);
         });
@@ -827,6 +1017,10 @@ class InteractiveCanvas {
         
         this.svg.appendChild(line);
         this.endpointLine = line;
+
+        if (this.mode !== 'tn_measurement') {
+            line.style.display = 'none';
+        }
     }
 
     updateEndpointLine() {
@@ -851,16 +1045,16 @@ class InteractiveCanvas {
             this.endpointLine = null;
         }
         
-        this.clearPreviewLine();
+        this.clearPreviewElements();
         
-        // Clear data
+        // Clear data and reset state
         this.endpoints = [];
+        this.isPlacingFirst = true;
         this.updateTNStatus();
         
-        // Save empty endpoints to localStorage (BLOCKING)
         this.autoSaveAnnotations();
     }
-    
+
     handleMouseUp(e) {
         let shouldAutoSave = false;
         
@@ -928,7 +1122,7 @@ class InteractiveCanvas {
         label.setAttribute('fill', 'white');
         label.setAttribute('font-size', '12');
         label.setAttribute('font-family', 'Arial, sans-serif');
-        label.textContent = rect.label;
+        label.textContent = this.getLocalizedStructureName(rect.labelString);
         rect.labelText = label; 
         
         // Delete button - simplified X without circle background
@@ -955,6 +1149,10 @@ class InteractiveCanvas {
         g.appendChild(deleteX);
         
         this.svg.appendChild(g);
+
+        if (this.mode !== 'bounding_box') {
+            g.style.display = 'none';
+        }
         
         rect.rectEl = rectEl;
         rect.labelBg = labelBg;
@@ -1183,8 +1381,7 @@ class InteractiveCanvas {
         };
         
         try {
-            localStorage.setItem('streamlit_annotations', JSON.stringify(data));            
-            console.log('Auto-saved annotations to localStorage:', data);
+            localStorage.setItem('streamlit_annotations', JSON.stringify(data));
         } catch (error) {
             console.error('Error saving annotations:', error);
         }
@@ -1218,6 +1415,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Check if localStorage should be cleared
     const clearLocalStorage = window.clearLocalStorage || false;
+
+    // Initial mode
+    const mode = window.mode == 'bounding_box' ? 'bounding_box' : (window.mode == 'tn_measurement' ? 'tn_measurement' : null);
+    console.log('Mode:', mode);
+
+    const langpack = window.langpack || {};
     
-    new InteractiveCanvas('interactive-canvas', imageUrl, structures, initialRectangles, maskUrl, initialEndpoints, clearLocalStorage);
+    new InteractiveCanvas('interactive-canvas',
+        imageUrl,
+        structures,
+        initialRectangles,
+        maskUrl,
+        initialEndpoints,
+        clearLocalStorage,
+        mode,
+        langpack
+    );
 });
