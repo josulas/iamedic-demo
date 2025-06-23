@@ -6,3 +6,5 @@ pre_processing_segmentation/*
 models/runs/
 preprocessed_images/
 segmentations/
+
+__pycache__/
