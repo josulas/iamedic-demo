@@ -1,3 +1,8 @@
+"""
+Módulo para denoising de las imágenes del dataset. Utilizado mayormente para el modelo de segmentación
+Créditos a Lucas Neira
+"""
+
 # Librerías
 
 import numpy as np
@@ -117,6 +122,7 @@ def lukinoising(img,alpha=0.5,beta=0.5):
 
 # Prueba de la función
 def main():
+    import matplotlib.pyplot as plt
     
     path = "dataset/Set1-Training&Validation Sets CNN/Standard/25.png"
     img = cv2.imread(path,cv2.IMREAD_GRAYSCALE)
