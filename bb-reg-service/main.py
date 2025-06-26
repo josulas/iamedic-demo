@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import onnxruntime as ort
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,10 +9,9 @@ from PIL import Image as PILImage
 import mlflow
 from mlflow.tracking import MlflowClient
 
-MLFLOW_URI = "http://localhost:8080"
+MLFLOW_URI = "http://host.docker.internal:8080"
 MLFLOW_MODEL_NAME = "anatomy_detector"
 MLFLOW_MODEL_ALIAS = "champion"
-
 ONNX_MODEL_PATH = f"{MLFLOW_MODEL_NAME}.onnx"
 
 mlflow.set_tracking_uri(MLFLOW_URI)
@@ -68,8 +68,11 @@ class ModelService:
             model_version = mlflow_client.get_model_version_by_alias(name=MLFLOW_MODEL_NAME, alias=MLFLOW_MODEL_ALIAS)
             onnx_source = model_version.source
             mlflow.artifacts.download_artifacts(onnx_source, dst_path=ONNX_MODEL_PATH)
-            self.model = ort.InferenceSession(ONNX_MODEL_PATH)
+            print(f"Downloaded file path: {os.path.abspath(ONNX_MODEL_PATH)}")
+            print(f"File exists: {os.path.exists(ONNX_MODEL_PATH)}")
+            print(f"File size: {os.path.getsize(ONNX_MODEL_PATH)} bytes")
             print(f"Model loaded successfully")            
+            self.model = ort.InferenceSession(ONNX_MODEL_PATH, providers=['CPUExecutionProvider'])
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
