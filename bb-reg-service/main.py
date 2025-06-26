@@ -90,7 +90,7 @@ async def predict(request: PredictionRequest):
         pil_image = PILImage.fromarray(image)
         pil_image = pil_image.resize((TARGET_WIDTH, TARGET_HEIGHT), PILImage.LANCZOS)
         image = np.array(pil_image)
-        image = image.astype(np.float32) / 255.0
+        image = (image.astype(np.float32) / 255.0 - 0.5) / 0.5  # Normalize to [-1, 1]
         image = np.expand_dims(image, axis=0)  # Add batch dimension
         image = np.expand_dims(image, axis=0)  # Add channel dimension
         
