@@ -9,14 +9,14 @@ import mlflow
 from mlflow.tracking import MlflowClient
 
 MLFLOW_URI = "http://localhost:8080"
-MODEL_NAME = "anatomy_detector"
-ALIAS = "champion"
+MLFLOW_MODEL_NAME = "anatomy_detector"
+MLFLOW_MODEL_ALIAS = "champion"
+
+ONNX_MODEL_PATH = f"{MLFLOW_MODEL_NAME}.onnx"
 
 mlflow.set_tracking_uri(MLFLOW_URI)
-client = MlflowClient()
-model_version = client.get_model_version_by_alias(name=MODEL_NAME, alias=ALIAS)
-onnx_source = model_version.source
-ONNX_MODEL_PATH = mlflow.artifacts.download_artifacts(onnx_source)
+mlflow_client = MlflowClient()
+
 TARGET_HEIGHT = 400
 TARGET_WIDTH = 600
 THRESHOLD = 0.3
@@ -31,8 +31,6 @@ CLASS_NAMES = {
     7: "Palate",
     8: "Thalami"
 }
-
-
 
 app = FastAPI(title="Bounding Box Regression Service")
 
@@ -67,8 +65,10 @@ class ModelService:
     def load_model(self):
         try: 
             # Load ONNX model (assuming you saved it as ONNX in MLflow)
-            onnx_path = MODEL_PATH
-            self.model = ort.InferenceSession(onnx_path)
+            model_version = mlflow_client.get_model_version_by_alias(name=MLFLOW_MODEL_NAME, alias=MLFLOW_MODEL_ALIAS)
+            onnx_source = model_version.source
+            mlflow.artifacts.download_artifacts(onnx_source, dst_path=ONNX_MODEL_PATH)
+            self.model = ort.InferenceSession(ONNX_MODEL_PATH)
             print(f"Model loaded successfully")            
         except Exception as e:
             print(f"Error loading model: {e}")
