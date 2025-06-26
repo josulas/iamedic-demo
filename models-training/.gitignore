@@ -1,4 +1,5 @@
 training_set/
-pre_processing_segmentation/
-models/
-runs/
+checkpoints/
+mlartifacts/
+mlruns/
+tb_logs/
