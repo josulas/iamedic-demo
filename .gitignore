@@ -1,10 +1,9 @@
 .idea
-training_set/
-
+mlruns/
 pre_processing_segmentation/*
 !pre_processing_segmentation/dataset_purge.ipynb
-models/runs/
-preprocessed_images/
-segmentations/
 
 __pycache__/
+
+models-training/checkpoints/
+
