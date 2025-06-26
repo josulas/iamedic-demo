@@ -5,9 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from PIL import Image as PILImage
+import mlflow
+from mlflow.tracking import MlflowClient
 
-MODEL_PATH = "anatomy_detector.onnx"
+MLFLOW_URI = "http://localhost:8080"
+MODEL_NAME = "anatomy_detector"
+ALIAS = "champion"
 
+mlflow.set_tracking_uri(MLFLOW_URI)
+client = MlflowClient()
+model_version = client.get_model_version_by_alias(name=MODEL_NAME, alias=ALIAS)
+onnx_source = model_version.source
+ONNX_MODEL_PATH = mlflow.artifacts.download_artifacts(onnx_source)
 TARGET_HEIGHT = 400
 TARGET_WIDTH = 600
 THRESHOLD = 0.3
@@ -22,6 +31,8 @@ CLASS_NAMES = {
     7: "Palate",
     8: "Thalami"
 }
+
+
 
 app = FastAPI(title="Bounding Box Regression Service")
 
