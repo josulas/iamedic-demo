@@ -9,7 +9,7 @@ from PIL import Image as PILImage
 import mlflow
 from mlflow.tracking import MlflowClient
 
-MLFLOW_URI = "http://host.docker.internal:8080"
+MLFLOW_URI = "http://mlflow:8080"
 MLFLOW_MODEL_NAME = "anatomy_detector"
 MLFLOW_MODEL_ALIAS = "champion"
 ONNX_MODEL_PATH = f"{MLFLOW_MODEL_NAME}.onnx"
