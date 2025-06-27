@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, HTTPException
@@ -6,10 +7,20 @@ from pydantic import BaseModel
 import uvicorn
 from PIL import Image as PILImage
 import cv2
+import mlflow
+from mlflow.tracking import MlflowClient
 
-from lukinoising4GP import lukinoising
+from denoising import denoising
 
-MODEL_PATH = "unet_fetus_segmentation.onnx"
+MLFLOW_URI = os.getenv("MLFLOW_URI", "http://mlflow:8080")
+MLFLOW_MODEL_NAME = "nt_segmenter"
+MLFLOW_MODEL_ALIAS = "champion"
+
+mlflow.set_tracking_uri(MLFLOW_URI)
+mlflow.set_registry_uri(MLFLOW_URI)
+mlflow_client = MlflowClient(tracking_uri=MLFLOW_URI,
+                             registry_uri=MLFLOW_URI)
+
 
 TARGET_HEIGHT = 400
 TARGET_WIDTH = 600
@@ -39,9 +50,11 @@ app.add_middleware(
 BWImage = list[list[int]]
 
 class PredictionRequest(BaseModel):
+    """Request model for prediction"""
     data: BWImage
 
 class Ellipse(BaseModel):
+    """Model representing an ellipse fitted to a binary mask"""
     center_x: float
     center_y: float
     minor_axis: float
@@ -49,20 +62,30 @@ class Ellipse(BaseModel):
     angle: float
 
 class Prediction(BaseModel):
+    """Model representing a prediction result"""
     seg_mask: BWImage
     tn_endpoints: tuple[tuple[float, float], tuple[float, float]] | None = None
 
 class PredictionResponse(BaseModel):
+    """Response model for prediction"""
     prediction: Prediction
 
 class ModelService:
+    """Service to load and use the ONNX model for predictions"""
     def __init__(self):
         self.model = None
         self.load_model()
     
     def load_model(self):
+        """Load the ONNX model from MLflow"""
         try:
-            self.model = ort.InferenceSession(MODEL_PATH)
+            model_version = mlflow_client.get_model_version_by_alias(name=MLFLOW_MODEL_NAME, alias=MLFLOW_MODEL_ALIAS)
+            onnx_source = model_version.source
+            models_dir = "/app/models"
+            os.makedirs(models_dir, exist_ok=True)
+            ONNX_MODEL_PATH = mlflow.artifacts.download_artifacts(onnx_source,
+                                                                  dst_path=models_dir)      
+            self.model = ort.InferenceSession(ONNX_MODEL_PATH)
             print(f"Model loaded successfully")            
         except Exception as e:
             print(f"Error loading model: {e}")
@@ -115,7 +138,7 @@ async def predict(request: PredictionRequest):
     try:
         input_array = np.array(request.data, dtype=np.uint8)
         original_height, original_width = input_array.shape
-        denoised_array = lukinoising(input_array, alpha=0.5, beta=0.5)
+        denoised_array = denoising(input_array, alpha=0.5, beta=0.5)
         img = PILImage.fromarray(denoised_array)
         resized_img = img.resize((TARGET_WIDTH, TARGET_HEIGHT),  PILImage.LANCZOS)
         img_array = np.array(resized_img, dtype=np.float32) / 255.0

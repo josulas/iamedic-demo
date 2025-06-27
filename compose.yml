@@ -1,9 +1,9 @@
 services:
   mlflow:
-    image: python:3.9-slim
+    image: ghcr.io/mlflow/mlflow:latest
+    working_dir: /mlflow
     command: >
       bash -c "
-      pip install mlflow[extras]==2.8.1 &&
       mlflow server 
       --host 0.0.0.0 
       --port 8080 
@@ -26,6 +26,9 @@ services:
       start_period: 60s
     restart: unless-stopped
   seg-service:
+    environment:
+      - MLFLOW_URI=http://mlflow:8080
+      - PYTHONUNBUFFERED=1
     depends_on:
       mlflow:
         condition: service_healthy 
@@ -55,6 +58,9 @@ services:
         - action: rebuild
           path: ./seg-service/requirements.txt
   bb-reg-service:
+    environment:
+      - MLFLOW_URI=http://mlflow:8080
+      - PYTHONUNBUFFERED=1
     depends_on:
       mlflow:
         condition: service_healthy 

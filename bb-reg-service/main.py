@@ -1,3 +1,4 @@
+import mlflow.artifacts
 import numpy as np
 import os
 import onnxruntime as ort
@@ -9,13 +10,14 @@ from PIL import Image as PILImage
 import mlflow
 from mlflow.tracking import MlflowClient
 
-MLFLOW_URI = "http://mlflow:8080"
+MLFLOW_URI = os.getenv("MLFLOW_URI", "http://mlflow:8080")
 MLFLOW_MODEL_NAME = "anatomy_detector"
 MLFLOW_MODEL_ALIAS = "champion"
-ONNX_MODEL_PATH = f"{MLFLOW_MODEL_NAME}.onnx"
 
 mlflow.set_tracking_uri(MLFLOW_URI)
-mlflow_client = MlflowClient()
+mlflow.set_registry_uri(MLFLOW_URI)
+mlflow_client = MlflowClient(tracking_uri=MLFLOW_URI,
+                             registry_uri=MLFLOW_URI)
 
 TARGET_HEIGHT = 400
 TARGET_WIDTH = 600
@@ -67,12 +69,11 @@ class ModelService:
             # Load ONNX model (assuming you saved it as ONNX in MLflow)
             model_version = mlflow_client.get_model_version_by_alias(name=MLFLOW_MODEL_NAME, alias=MLFLOW_MODEL_ALIAS)
             onnx_source = model_version.source
-            mlflow.artifacts.download_artifacts(onnx_source, dst_path=ONNX_MODEL_PATH)
-            print(f"Downloaded file path: {os.path.abspath(ONNX_MODEL_PATH)}")
-            print(f"File exists: {os.path.exists(ONNX_MODEL_PATH)}")
-            print(f"File size: {os.path.getsize(ONNX_MODEL_PATH)} bytes")
-            print(f"Model loaded successfully")            
-            self.model = ort.InferenceSession(ONNX_MODEL_PATH, providers=['CPUExecutionProvider'])
+            models_dir = "/app/models"
+            os.makedirs(models_dir, exist_ok=True)
+            ONNX_MODEL_PATH = mlflow.artifacts.download_artifacts(onnx_source,
+                                                                  dst_path=models_dir)        
+            self.model = ort.InferenceSession(ONNX_MODEL_PATH)
         except Exception as e:
             print(f"Error loading model: {e}")
             raise

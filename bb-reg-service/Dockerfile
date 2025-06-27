@@ -14,12 +14,19 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-COPY . .
-ENV PYTHONUNBUFFERED=1
-
 # Create a non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+
+# Copy application files
+COPY . .
+
+# Transfer ownership of the application directory to the non-root user
+RUN chown -R appuser:appuser /app
+
+# Create a directory for model downloads with proper permissions
+RUN mkdir -p /app/models && chown -R appuser:appuser /app/models
+
+# Switch to the non-root user
 USER appuser
 
 # Expose the port FastAPI runs on
