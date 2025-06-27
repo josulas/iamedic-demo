@@ -102,7 +102,7 @@ def denoisingFFT(img,ths_list,mode='1'):
 
 # Función principal
 
-def lukinoising(img,alpha=0.5,beta=0.5):
+def denoising(img,alpha=0.5,beta=0.5):
     
     equ = cv2.equalizeHist(img)
 
@@ -117,11 +117,12 @@ def lukinoising(img,alpha=0.5,beta=0.5):
 
 # Prueba de la función
 def main():
-    
+    import matplotlib.pyplot as plt
+
     path = "dataset/Set1-Training&Validation Sets CNN/Standard/25.png"
     img = cv2.imread(path,cv2.IMREAD_GRAYSCALE)
     equ = cv2.equalizeHist(img)
-    new_img = lukinoising(img,alpha=0.5,beta=0.5)
+    new_img = denoising(img,alpha=0.5,beta=0.5)
 
     fig = plt.figure(figsize=(20,15))
     ax = fig.add_subplot(1,3,1)
