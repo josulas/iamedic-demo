@@ -3,3 +3,4 @@ checkpoints/
 mlartifacts/
 mlruns/
 tb_logs/
+mlartifacts.zip
