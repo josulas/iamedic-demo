@@ -63,7 +63,7 @@ The application follows a microservices architecture with the following componen
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker
 - Git
 
 ### Installation
@@ -76,7 +76,7 @@ The application follows a microservices architecture with the following componen
 
 2. **Start the application:**
    ```bash
-   docker-compose up --build
+   docker compose -f compose.yml up --build
    ```
 
 3. **Access the application:**
@@ -89,7 +89,7 @@ The application follows a microservices architecture with the following componen
 For development with hot reload:
 
 ```bash
-docker-compose up --build --watch
+docker compose -f compose.yml up --build --watch
 ```
 
 ## 📁 Project Structure
